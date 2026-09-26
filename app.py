@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request
 import yt_dlp
 import os
 
@@ -8,6 +8,23 @@ DOWNLOAD_FOLDER = "downloads"
 
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
+
+
+# YouTube cookies support
+COOKIE_FILE = "cookies.txt"
+
+
+def ydl_common_options():
+    options = {
+        "quiet": True,
+        "noplaylist": True,
+    }
+
+    # Use cookies if file exists
+    if os.path.exists(COOKIE_FILE):
+        options["cookiefile"] = COOKIE_FILE
+
+    return options
 
 
 @app.route("/")
@@ -21,13 +38,12 @@ def download():
     url = request.form["url"]
 
     try:
-        ydl_opts = {
-            "quiet": True,
-            "noplaylist": True
-        }
+
+        ydl_opts = ydl_common_options()
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+
 
         title = info.get("title")
         thumbnail = info.get("thumbnail")
@@ -43,7 +59,9 @@ def download():
             if height and height not in qualities:
                 qualities.append(height)
 
+
         qualities.sort(reverse=True)
+
 
         quality_names = []
 
@@ -85,31 +103,34 @@ def start_download():
 
     try:
 
+        ydl_opts = ydl_common_options()
+
+
         if format_type == "mp3":
 
-            ydl_opts = {
-                "format": "bestaudio",
+            ydl_opts.update({
+                "format": "bestaudio/best",
                 "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
                 "postprocessors": [
                     {
                         "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3"
+                        "preferredcodec": "mp3",
+                        "preferredquality": "192"
                     }
                 ]
-            }
+            })
+
 
         else:
 
-            ydl_opts = {
+            ydl_opts.update({
                 "format": f"bestvideo[height<={quality}]+bestaudio/best",
                 "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s"
-            }
+            })
 
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-
-            filename = ydl.prepare_filename(info)
+            ydl.extract_info(url, download=True)
 
 
         return "Download Complete ✅"
